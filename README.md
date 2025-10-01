@@ -1,6 +1,6 @@
 spring-boot-loginEx-backend
 
-Fully dockerize spring boot app with postgres
+Fully dockerized spring boot app with postgres
 
 #
 To clear database volume: 
