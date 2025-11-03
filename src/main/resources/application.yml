@@ -1,29 +1,54 @@
+server:
+  port: 8080
+
 spring:
   datasource:
     url: jdbc:postgresql://postgres-db:5432/${POSTGRES_DB}
-
     username: ${POSTGRES_USER}
     password: ${POSTGRES_PASSWORD}
-
     driver-class-name: org.postgresql.Driver
 
+    hikari:
+      connection-timeout: 20000
+      maximum-pool-size: 5
+      idle-timeout: 300000
+      max-lifetime: 1200000
+      connection-test-query: SELECT 1
+
   jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
       ddl-auto: update
     show-sql: true
     properties:
       hibernate:
         format_sql: true
+        jdbc:
+          lob:
+            non_contextual_creation: true
+          time_zone: UTC
+        connection:
+          provider_disables_autocommit: false
         naming:
           physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
-
-server:
-  port: 8080
-
+  task:
+    scheduling:
+      pool:
+        size: 2
 jwt:
   secret: ${JWT_SECRET}
-  expiration: ${JWT_EXPIRATION}%
+  expiration: ${JWT_EXPIRATION:3600000}
+  refresh-expiration: ${REFRESH_EXPIRATION:604800000}
 
 app:
+  max-refresh-tokens-per-user: 5  # Limit active devices per user
   cors:
-    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:3000}
+    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS}
+
+logging:
+  level:
+    com.login.backend: DEBUG
+    org.springframework.security: DEBUG
+    com.zaxxer.hikari: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.springframework.jdbc.datasource: DEBUG
