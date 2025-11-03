@@ -1,65 +1,83 @@
 package com.login.backend.controller;
 
-import com.login.backend.model.Role;
+import com.login.backend.dto.ChangePasswordRequest;
+import com.login.backend.dto.UpdateProfileRequest;
 import com.login.backend.model.User;
 import com.login.backend.service.UserService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Map;
+import java.util.List;
 
 @RestController
-@RequestMapping("/auth")
+@RequestMapping("/api/users")
 @RequiredArgsConstructor
 public class UserController {
 
     private final UserService userService;
 
-    @PostMapping("/register")
-    public ResponseEntity<?> register(@RequestBody User user) {
-        try {
-            if (user.getRole() == null) {
-                user.setRole(Role.USER);
-            }
-
-            User newUser = userService.register(user);
-
-            return ResponseEntity.ok(Map.of(
-                    "user", Map.of(
-                            "username", newUser.getUsername(),
-                            "role", "ROLE_" + newUser.getRole().name(),
-                            "createdAt", newUser.getCreatedAt(),
-                            "updatedAt", newUser.getUpdatedAt()
-                    ),
-                    "content", "User registered successfully!"
-            ));
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
-        }
+    @GetMapping
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<List<User>> getAllUsers() {
+        List<User> users = userService.getAllUsers();
+        return ResponseEntity.ok(users);
     }
 
-    @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody Map<String, String> loginRequest) {
-        try {
-            String username = loginRequest.get("username");
-            String password = loginRequest.get("password");
+    @GetMapping("/me")
+    public ResponseEntity<User> getCurrentUser(Authentication authentication) {
+        String username = authentication.getName();
+        User user = userService.findByUsername(username);
+        return ResponseEntity.ok(user);
+    }
 
-            String token = userService.login(username, password);
-            User user = userService.findByUsername(username); // get full user info
+    @GetMapping("/username/{username}")
+    public ResponseEntity<User> getUserByUsername(@PathVariable String username) {
+        User user = userService.findByUsername(username);
+        return ResponseEntity.ok(user);
+    }
 
-            return ResponseEntity.ok(Map.of(
-                    "token", token,
-                    "user", Map.of(
-                            "username", user.getUsername(),
-                            "role", "ROLE_" + user.getRole().name(),
-                            "createdAt", user.getCreatedAt(),
-                            "updatedAt", user.getUpdatedAt()
-                    ),
-                    "content", "Hello " + username + "! This is your protected dashboard."
-            ));
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.status(401).body(Map.of("error", e.getMessage()));
-        }
+    @GetMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<User> getUserById(@PathVariable Long id) {
+        User user = userService.findById(id);
+        return ResponseEntity.ok(user);
+    }
+
+    @PutMapping("/me")
+    public ResponseEntity<User> updateProfile(
+            Authentication authentication,
+            @Valid @RequestBody UpdateProfileRequest request) {
+        String username = authentication.getName();
+        User user = userService.updateProfile(username, request);
+        return ResponseEntity.ok(user);
+    }
+
+    @PutMapping("/me/password")
+    public ResponseEntity<Void> changePassword(
+            Authentication authentication,
+            @Valid @RequestBody ChangePasswordRequest request) {
+        String username = authentication.getName();
+        userService.changePassword(username, request);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<User> updateUser(
+            @PathVariable Long id,
+            @Valid @RequestBody UpdateProfileRequest request) {
+        User updatedUser = userService.updateUserById(id, request);
+        return ResponseEntity.ok(updatedUser);
+    }
+
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Void> deleteUser(@PathVariable Long id) {
+        userService.deleteUser(id);
+        return ResponseEntity.noContent().build();
     }
 }

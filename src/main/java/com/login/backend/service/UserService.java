@@ -1,47 +1,80 @@
 package com.login.backend.service;
 
-import com.login.backend.model.Role;
+import com.login.backend.dto.ChangePasswordRequest;
+import com.login.backend.dto.UpdateProfileRequest;
+import com.login.backend.exception.InvalidCredentialsException;
+import com.login.backend.exception.UserNotFoundException;
 import com.login.backend.model.User;
 import com.login.backend.repository.UserRepository;
-import com.login.backend.security.JwtUtil;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class UserService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
-    private final JwtUtil jwtUtil;
 
-    public User register(User user) {
-        if (userRepository.findByUsername(user.getUsername()).isPresent()) {
-            throw new IllegalArgumentException("Username already exists");
-        }
+    @Transactional(readOnly = true)
+    public List<User> getAllUsers() {
+        return userRepository.findAll();
+    }
 
-        if (user.getRole() == null) {
-            user.setRole(Role.USER);
-        }
+    @Transactional(readOnly = true)
+    public User findByUsername(String username) {
+        return userRepository.findByUsername(username)
+                .orElseThrow(() -> new UserNotFoundException("User not found: " + username));
+    }
 
-        user.setPassword(passwordEncoder.encode(user.getPassword()));
+    @Transactional(readOnly = true)
+    public User findById(Long id) {
+        return userRepository.findById(id)
+                .orElseThrow(() -> new UserNotFoundException("User not found with id: " + id));
+    }
+
+    @Transactional
+    public User updateProfile(String username, UpdateProfileRequest request) {
+        User user = findByUsername(username);
+        user.setEmail(request.getEmail());
+
+        log.info("Profile updated for user: {}", username);
         return userRepository.save(user);
     }
 
-    public String login(String username, String password) {
-        User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new IllegalArgumentException("Invalid username or password"));
+    @Transactional
+    public void changePassword(String username, ChangePasswordRequest request) {
+        User user = findByUsername(username);
 
-        if (!passwordEncoder.matches(password, user.getPassword())) {
-            throw new IllegalArgumentException("Invalid username or password");
+        if (!passwordEncoder.matches(request.getOldPassword(), user.getPassword())) {
+            throw new InvalidCredentialsException("Current password is incorrect");
         }
 
-        return jwtUtil.generateToken(user.getUsername(), user.getRole().name());
+        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        userRepository.save(user);
+        log.info("Password changed for user: {}", username);
     }
 
-    public User findByUsername(String username) {
-        return userRepository.findByUsername(username)
-                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+    @Transactional
+    public User updateUserById(Long id, UpdateProfileRequest request) {
+        User user = findById(id);
+        user.setEmail(request.getEmail());
+        log.info("User updated by admin: {}", id);
+        return userRepository.save(user);
+    }
+
+    @Transactional
+    public void deleteUser(Long id) {
+        if (!userRepository.existsById(id)) {
+            throw new UserNotFoundException("User not found with id: " + id);
+        }
+        userRepository.deleteById(id);
+        log.info("User deleted: {}", id);
     }
 }
